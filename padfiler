@@ -7,40 +7,40 @@ exit_usage () { echo "Usage: padfiler start|stop|create|edit profile"; exit 1; }
 [[ ! -x $(which sudo) ]] && echo "Can't run without sudo." && exit 1
 [[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@";
 
-JOYS=(/dev/input/js*)
-[[ -z "${JOYS[*]}" ]] && exit;
+joys=(/dev/input/js*)
+[[ -z "${joys[*]}" ]] && exit;
 
 if [[ -n "$(which antimicro)" ]]; then
-    ANTIMICRO_BIN="$(which antimicro)"
+    antimicro_bin="$(which antimicro)"
 elif [[ -e "/usr/bin/antimicro" ]]; then
-    ANTIMICRO_BIN="/usr/bin/antimicro"
+    antimicro_bin="/usr/bin/antimicro"
 elif [[ -e "/usr/games/antimicro" ]]; then
-    ANTIMICRO_BIN="/usr/games/antimicro"
+    antimicro_bin="/usr/games/antimicro"
 else
     echo "Antimicro not found."
     exit 1
 fi
 
-TASK="$1"
-PADFILE="$2"
-PADFILE2="$3"
+task="$1"
+padfile="$2"
+padfile2="$3"
 
-PADFILE_PATH="/etc/padfiles/$PADFILE.xml"
-[[ -n "$PADFILE2" ]] && [[ ${#JOYS[@]} -ge 2 ]] && \
-    PADFILE2_PATH="/etc/padfiles/$PADFILE2.xml"
+padfile_path="/etc/padfiles/$padfile.xml"
+[[ -n "$padfile2" ]] && [[ ${#joys[@]} -ge 2 ]] && \
+    padfile2_path="/etc/padfiles/$padfile2.xml"
 
-case "$TASK" in
+case "$task" in
 start)
-    [[ -z "$PADFILE" ]] && exit_usage
+    [[ -z "$padfile" ]] && exit_usage
     "$0" lock-all
 
-    echo "--== Starting gamepad profiler: $PADFILE $PADFILE2"
-    "$ANTIMICRO_BIN" --hidden --profile "$PADFILE_PATH" &
+    echo "--== Starting gamepad profiler: $padfile $padfile2"
+    "$antimicro_bin" --hidden --profile "$padfile_path" &
 
     # This hack allows assigning different profiles to different controllers.
-    if [[ -n "$PADFILE2_PATH" ]]; then
+    if [[ -n "$padfile2_PATH" ]]; then
         sleep 1 && pkill -9 -f antimicro
-        "$ANTIMICRO_BIN" --hidden --profile "$PADFILE2_PATH" \
+        "$antimicro_bin" --hidden --profile "$padfile2_path" \
          --profile-controller 2 &
     fi
 
@@ -50,21 +50,21 @@ stop)
     pkill -f antimicro  # Antimicro doesn't like to be quit nicely.
     ;;
 create)
-    [[ -z "$PADFILE" ]] && exit_usage
+    [[ -z "$padfile" ]] && exit_usage
     if [[ -e "/etc/padfile/_temp_.xml" ]]; then
-        cp "/etc/padfile/_temp_.xml" "$PADFILE_PATH"
+        cp "/etc/padfile/_temp_.xml" "$padfile_path"
     else
         echo "<?xml version="1.0" encoding="UTF-8"?>
 <joystick configversion="4">
     <sets>
     </sets>
-</joystick>" > "$PADFILE_PATH"
+</joystick>" > "$padfile_path"
     fi
-    "$ANTIMICRO_BIN" --no-tray --profile "$PADFILE_PATH"
+    "$antimicro_bin" --no-tray --profile "$padfile_path"
     ;;
 edit)
-    [[ -z "$PADFILE" ]] && exit_usage
-    "$ANTIMICRO_BIN" --no-tray --profile "$PADFILE_PATH"
+    [[ -z "$padfile" ]] && exit_usage
+    "$antimicro_bin" --no-tray --profile "$padfile_path"
     ;;
 lock-js)
     echo "--== Disabling JS devices"

@@ -5,54 +5,62 @@
 exit_usage () { echo "Usage: padfiler start|stop|create|edit profile"; exit 1; }
 [[ $# -lt 1 ]] && exit_usage
 [[ ! -x $(which sudo) ]] && echo "Can't run without sudo." && exit 1
-[[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@";
 
-joys=(/dev/input/js*)
-[[ -z "${joys[*]}" ]] && exit;
+# Make sure there are even joysticks.
+joys=$(find /dev/input -maxdepth 1 -name "js*" | wc -l)
+[[ $joys -lt 1 ]] && exit;
 
-if [[ -n "$(which antimicro)" ]]; then
-    antimicro_bin="$(which antimicro)"
-elif [[ -e "/usr/bin/antimicro" ]]; then
-    antimicro_bin="/usr/bin/antimicro"
-elif [[ -e "/usr/games/antimicro" ]]; then
-    antimicro_bin="/usr/games/antimicro"
-else
-    echo "Antimicro not found."
-    exit 1
-fi
+# Find antimicro binary.
+[[ -x "$antimicro_bin" ]] || { antimicro_bin="$(which antimicro)"
+[[ -x "$antimicro_bin" ]] || { antimicro_bin="/usr/bin/antimicro"
+[[ -x "$antimicro_bin" ]] || { antimicro_bin="/usr/local/bin/antimicro"
+[[ -x "$antimicro_bin" ]] || { antimicro_bin="/usr/games/antimicro"
+[[ -x "$antimicro_bin" ]] || { antimicro_bin="/usr/local/games/antimicro"
+[[ -x "$antimicro_bin" ]] || { echo "Antimicro not found."; exit 1; } } } } } }
+
+# Find padfile dir.
+[[ -d "$padfiles_dir" ]] || { padfiles_dir="$XDG_CONFIG_HOME/padfiles"
+[[ -d "$padfiles_dir" ]] || { conf_dir="$HOME/.config/padfiles"
+[[ -d "$padfiles_dir" ]] || {
+    if [[ -d "$XDG_CONFIG_HOME" ]]; then
+        padfiles_dir="$XDG_CONFIG_HOME/padfiles"
+    else padfiles_dir="$HOME/.config/padfiles"; fi
+    mkdir -p "$padfiles_dir" 
+} } }
 
 task="$1"
 padfile="$2"
 padfile2="$3"
 
-padfile_path="/etc/padfiles/$padfile.xml"
-[[ -n "$padfile2" ]] && [[ ${#joys[@]} -ge 2 ]] && \
-    padfile2_path="/etc/padfiles/$padfile2.xml"
+padfile_path="$padfiles_dir/$padfile.xml"
+[[ -n "$padfile2" ]] && [[ $joys -ge 2 ]] && \
+    padfile2_path="$padfiles_dir/$padfile2.xml"
 
 case "$task" in
 start)
     [[ -z "$padfile" ]] && exit_usage
+    [[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@"
     "$0" lock-all
 
     echo "--== Starting gamepad profiler: $padfile $padfile2"
-    "$antimicro_bin" --hidden --profile "$padfile_path" &
+    "$antimicro_bin" --hidden --no-tray --profile "$padfile_path" &
 
     # This hack allows assigning different profiles to different controllers.
-    if [[ -n "$padfile2_PATH" ]]; then
+    if [[ -n "$padfile2_path" ]]; then
         sleep 1 && pkill -9 -f antimicro
-        "$antimicro_bin" --hidden --profile "$padfile2_path" \
+        "$antimicro_bin" --hidden --no-tray --profile "$padfile2_path" \
          --profile-controller 2 &
     fi
-
-    wait && "$0" unlock
     ;;
 stop)
+    [[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@"
     pkill -f antimicro  # Antimicro doesn't like to be quit nicely.
+    "$0" unlock
     ;;
 create)
     [[ -z "$padfile" ]] && exit_usage
-    if [[ -e "/etc/padfile/_temp_.xml" ]]; then
-        cp "/etc/padfile/_temp_.xml" "$padfile_path"
+    if [[ -e "/etc/padfiles/_temp_.xml" ]]; then
+        cp "/etc/padfiles/_temp_.xml" "$padfile_path"
     else
         echo "<?xml version="1.0" encoding="UTF-8"?>
 <joystick configversion="4">
@@ -67,6 +75,7 @@ edit)
     "$antimicro_bin" --no-tray --profile "$padfile_path"
     ;;
 lock-js)
+    [[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@"
     echo "--== Disabling JS devices"
     for d in /dev/input/js*; do
         echo "-= Locking $d"
@@ -74,6 +83,7 @@ lock-js)
     done
     ;;
 lock-event)
+    [[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@"
     echo "--== Disabling event joysticks"
     for d in /dev/input/event*; do
         (udevadm info --name $d | grep ID_INPUT_JOYSTICK &> /dev/null) && \
@@ -81,10 +91,12 @@ lock-event)
     done
     ;;
 lock-all)
+    [[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@"
     "$0" lock-js
     "$0" lock-event
     ;;
 unlock)
+    [[ "$(whoami)" != "root" ]] && exec sudo "$0" "$@"
     echo "--== Re-enabling joystick devices"
     for d in /dev/input/js*; do
         echo "-= Unlocking $d"
